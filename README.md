@@ -8,12 +8,10 @@ All the experiment results reported in our paper can be well reproduced.
 use `python main.py --runs 10 --model dif` to run our model DIF,  
 
 #### experiments on graph and time-series data (Sec. 4.2.2)
-`main_graph.py` to perfroman experiments on graph data  
-Specifically, `python main_graph.py --runs 10 --model dif` to run our model DIF,  
+use `python main_graph.py --runs 10 --model dif` to perform the experiments on graph data  
 GLocalKD and InfoGraph can be directly used after downloading their implementation from Github. 
 
-`main_ts.py` to perform experiments on time-series data
-`--model` can be changed to `eif`, `lesinn`, and `iforest`  
+use `python main_ts.py --runs 10 --model dif` to perform experiments on time-series data
 GDN and Omni are also publicly aviable and can be directly used after downloading from Github
 
   
