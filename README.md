@@ -1,8 +1,8 @@
-# DIF
+# Deep iForest
 
 
 ## Reproduction of experiment results
-All the experiment results reported in our paper can be well reproduced. We do appreciate all the reivewers for their efforts and time.   
+All the experiment results reported in our paper can be well reproduced. 
 
 #### experiments on tabular data (Sec. 4.2.1)
 use `python main.py --runs 10 --model dif` to run our model DIF,  
