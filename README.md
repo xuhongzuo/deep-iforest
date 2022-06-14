@@ -39,7 +39,7 @@ Different network structures are implemented as well, please change the argument
 ---
 ## Datasets
 
-We retain two small tabular datasets (*Ad*and*Cardio*), one time-series dataset (*MSL*), and one graph dataset (*MMP*) as examples.
+We retain two small tabular datasets (*Ad* and *Cardio*), one time-series dataset (*MSL*), and one graph dataset (*MMP*) as examples.
 For other datasets, we provide links in the appendix of our paper.
 
 *Ad* and *Cardio* are obtained from https://archive.ics.uci.edu/  
