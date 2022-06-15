@@ -1,8 +1,7 @@
 # Deep iForest
 
-This repository is the source code the paper: https://arxiv.org/abs/2206.06602
-Please cite our paper if you use this repository
-
+This repository is the source code the paper: https://arxiv.org/abs/2206.06602  
+Please cite our paper if you use this repository  
 
 ```
 @article{xu2022deep,
