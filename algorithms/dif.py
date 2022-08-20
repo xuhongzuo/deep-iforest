@@ -5,17 +5,15 @@ from sklearn.utils import check_array
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import IsolationForest
 from torch.utils.data import DataLoader
-from algorithms.dif_pkg import net_torch, net_util
-from multiprocessing import Pool
+from algorithms.dif_pkg import net_util
 from tqdm import tqdm
-import random
 
 
 class DeepIsolationForest:
     def __init__(self, network_name='layer4', network=None, n_ensemble=50, n_estimators=6, max_samples=256,
                  n_jobs=1, random_state=42, n_processes=15, data_type='tabular',
                  batch_size=10000, device='cuda', graph_feature_type='default',
-                 verbose=1,
+                 verbose=2,
                  **network_args):
 
         self.network_name = network_name
@@ -23,6 +21,14 @@ class DeepIsolationForest:
         if network is not None:
             self.net = network
         self.network_args = network_args
+
+        if network_name.startswith('layer'):
+            n_layer = int(network_name[5]) - 2
+            is_skip = 1 if network_name.endswith('skip') else 0
+            hidden_size = [1200, 800, 500, 100]
+            self.network_args['n_hidden'] = hidden_size[-n_layer::]
+            self.network_args['skip_connection'] = is_skip
+
         print(f'network additional parameters: {network_args}')
 
         self.n_ensemble = n_ensemble

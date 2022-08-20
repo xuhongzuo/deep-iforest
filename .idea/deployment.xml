@@ -1,29 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" serverName="xuhz@10.0.9.98:22 cuda101" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="xuhongzuo@10.0.9.98:22 base">
-        <serverdata>
-          <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="xuhongzuo@10.0.9.98:22 cuda101">
-        <serverdata>
-          <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="xuhongzuo@10.0.9.98:22 password">
-        <serverdata>
-          <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
       <paths name="xuhz@10.0.9.49:22">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="xuhz@10.0.9.49:22 cuda113">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
@@ -37,6 +23,13 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="xuhz@10.0.9.49:22 standard">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="xuhz@10.0.9.66:22 cuda101">
         <serverdata>
           <mappings>
@@ -44,7 +37,49 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="xuhz@10.0.9.66:22 password">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="xuhz@10.0.9.66:22 standard">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="xuhz@10.0.9.98:22 cuda101">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/work/2022-deep iforest/code_released_during_review/deep-iforest_github" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="xuhz@10.0.9.98:22 cuda113">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="xuhz@10.0.9.98:22 standard">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="xuhz@10.107.21.241 cuda113">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="xuhz@10.107.21.242 cuda113">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />

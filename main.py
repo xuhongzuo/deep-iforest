@@ -29,7 +29,7 @@ parser.add_argument("--note", type=str, default='')
 # parameters of DIF
 parser.add_argument('--n_ensemble', type=int, default=50)
 parser.add_argument('--n_estimators', type=int, default=6)
-parser.add_argument('--network_name', type=str, default='layer4-skip3')
+parser.add_argument('--network_name', type=str, default='layer4-skip')
 parser.add_argument('--n_emb', type=int, default=20)
 
 

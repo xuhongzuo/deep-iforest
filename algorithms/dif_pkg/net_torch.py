@@ -2,129 +2,61 @@ import torch
 from torch.nn import functional as F
 
 
-class Net2(torch.nn.Module):
-    def __init__(self, n_features):
-        super(Net2, self).__init__()
-        self.hidden_layer = torch.nn.Linear(n_features, 20, bias=False)
+class MLPnet(torch.nn.Module):
+    def __init__(self, n_features, n_hidden=[500, 100], n_emb=20, act='tanh',
+                 skip_connection=0):
+        super(MLPnet, self).__init__()
+        self.skip_connection = skip_connection
+
+        assert act in ['tanh', 'relu']
+
+        if type(n_hidden)==int: n_hidden = [n_hidden]
+        num_layers = len(n_hidden)
+
+        self.layers = []
+        for i in range(num_layers+1):
+            in_channels, out_channels = self.get_in_out_channels(i, num_layers, n_features,
+                                                                 n_hidden, n_emb, skip_connection)
+            self.layers += [LinearBlock(in_channels, out_channels,
+                                        act=act if i != num_layers else None,
+                                        skip_connection=skip_connection if i != num_layers else 0)]
+        self.network = torch.nn.Sequential(*self.layers)
 
     def forward(self, x):
-        x1 = self.hidden_layer(x)
-        return x1
+        x = self.network(x)
+        return x
+
+    def get_in_out_channels(self, i, num_layers, n_features, n_hidden, n_emb, skip_connection):
+        if skip_connection == 0:
+            in_channels = n_features if i == 0 else n_hidden[i-1]
+            out_channels = n_emb if i == num_layers else n_hidden[i]
+        elif skip_connection == 1:
+            in_channels = n_features if i == 0 else np.sum(n_hidden[:i])+n_features
+            out_channels = n_emb if i == num_layers else n_hidden[i]
+        else:
+            raise NotImplementedError('')
+        return in_channels, out_channels
 
 
-class Net3S3(torch.nn.Module):
-    def __init__(self, n_features, n_hidden1=100, n_emb=20, act='tanh'):
-        super(Net3S3, self).__init__()
-        self.hidden_layer = torch.nn.Linear(n_features, n_hidden1, bias=False)
-        self.out_layer = torch.nn.Linear(n_hidden1+n_features, n_emb, bias=False)
-        if act == 'tanh':
-            self.act_f = torch.tanh
-        elif act == 'relu':
-            self.act_f = F.relu
-
-    def forward(self, x):
-        x1 = self.act_f(self.hidden_layer(x))
-        x11 = torch.cat([x1, x], axis=1)
-        x2 = self.out_layer(x11)
-        return x2
-
-
-class Net4(torch.nn.Module):
-    def __init__(self, n_features, n_hidden1=500, n_hidden2=100, n_hidden3=20, act='tanh'):
-        super(Net4, self).__init__()
-        self.hidden_layer1 = torch.nn.Linear(n_features, n_hidden1, bias=False)
-        self.hidden_layer2 = torch.nn.Linear(n_hidden1, n_hidden2, bias=False)
-        self.hidden_layer3 = torch.nn.Linear(n_hidden2, n_hidden3, bias=False)
-        if act == 'tanh':
-            self.act_f = torch.tanh
-        elif act == 'relu':
-            self.act_f = F.relu
-
-    def forward(self, x):
-        x1 = self.act_f(self.hidden_layer1(x))
-        x2 = self.act_f(self.hidden_layer2(x1))
-        x3 = self.hidden_layer3(x2)
-        return x3
-
-
-class Net5S3(torch.nn.Module):
-    def __init__(self, n_features, n_hidden1=800, n_hidden2=500, n_hidden3=100, n_emb=20, act='tanh'):
-        super(Net5S3, self).__init__()
-        self.hidden_layer1 = torch.nn.Linear(n_features, n_hidden1, bias=False)
-        self.hidden_layer2 = torch.nn.Linear(n_hidden1+n_features, n_hidden2, bias=False)
-        self.hidden_layer3 = torch.nn.Linear(n_hidden2+n_hidden1+n_features, n_hidden3, bias=False)
-        self.hidden_layer4 = torch.nn.Linear(n_hidden3+n_hidden2+n_hidden1+n_features, n_emb, bias=False)
+class LinearBlock(torch.nn.Module):
+    def __init__(self, in_channels, out_channels, bias=False, act='tanh', skip_connection=0):
+        super(LinearBlock, self).__init__()
 
         if act == 'tanh':
-            self.act_f = torch.tanh
+            self.act_layer = torch.nn.Tanh
         elif act == 'relu':
-            self.act_f = F.relu
+            self.act_layer = torch.nn.ReLU
+        self.skip_connection = skip_connection
+
+        self.block = torch.nn.Sequential()
+        self.block.add_module('linear', torch.nn.Linear(in_channels, out_channels, bias=bias))
+        self.block.add_module('act', self.act_layer()) if act is not None else None
 
     def forward(self, x):
-        x1 = self.act_f(self.hidden_layer1(x))
-        x11 = torch.cat([x1, x], axis=1)
-
-        x2 = self.act_f(self.hidden_layer2(x11))
-        x22 = torch.cat([x2, x1, x], axis=1)
-
-        x3 = self.act_f(self.hidden_layer3(x22))
-        x33 = torch.cat([x3, x2, x1, x], axis=1)
-
-        x4 = self.hidden_layer4(x33)
-        return x4
-
-
-
-class Net4S1(torch.nn.Module):
-    def __init__(self, n_features, n_hidden1=500, n_hidden2=100, n_hidden3=20, act='tanh'):
-        super(Net4S1, self).__init__()
-        self.hidden_layer1 = torch.nn.Linear(n_features, n_hidden1, bias=False)
-        self.hidden_layer2 = torch.nn.Linear(n_hidden1 + n_features, n_hidden2, bias=False)
-        self.hidden_layer3 = torch.nn.Linear(n_hidden2 + n_hidden1, n_hidden3, bias=False)
-
-        if act == 'tanh':
-            self.act_f = torch.tanh
-        elif act == 'relu':
-            self.act_f = F.relu
-
-
-    def forward(self, x):
-        x1 = self.hidden_layer1(x)
-        x1 = self.act_f(x1)
-
-        x11 = torch.cat([x1, x], axis=1)
-        x2 = self.hidden_layer2(x11)
-        x2 = self.act_f(x2)
-
-        x22 = torch.cat([x2, x1], axis=1)
-        x3 = self.hidden_layer3(x22)
-        return x3
-
-
-class Net4S2(torch.nn.Module):
-    def __init__(self, n_features, n_hidden1=500, n_hidden2=100, n_hidden3=20, act='tanh'):
-        super(Net4S2, self).__init__()
-        self.hidden_layer1 = torch.nn.Linear(n_features, n_hidden1, bias=False)
-        self.hidden_layer2 = torch.nn.Linear(n_hidden1 + n_features, n_hidden2, bias=False)
-        self.hidden_layer3 = torch.nn.Linear(n_hidden2 + n_features, n_hidden3, bias=False)
-
-        if act == 'tanh':
-            self.act_f = torch.tanh
-        elif act == 'relu':
-            self.act_f = F.relu
-
-
-    def forward(self, x):
-        x1 = self.hidden_layer1(x)
-        x1 = self.act_f(x1)
-
-        x11 = torch.cat([x1, x], axis=1)
-        x2 = self.hidden_layer2(x11)
-        x2 = self.act_f(x2)
-
-        x22 = torch.cat([x2, x], axis=1)
-        x3 = self.hidden_layer3(x22)
-        return x3
+        if self.skip_connection == 0:
+            return self.block(x)
+        elif self.skip_connection == 1:
+            return torch.cat([x, self.block(x)], axis=1)
 
 
 class Net4S3(torch.nn.Module):
@@ -155,180 +87,6 @@ class Net4S3(torch.nn.Module):
 
         # x3 = torch.tanh(x3)
         return x3
-
-
-class Net6(torch.nn.Module):
-    def __init__(self, n_features, n_hidden1=1200, n_hidden2=800, n_hidden3=500, n_hidden4=100, n_hidden5=20, act='tanh'):
-        super(Net6, self).__init__()
-        self.hidden_layer1 = torch.nn.Linear(n_features, n_hidden1, bias=False)
-        self.hidden_layer2 = torch.nn.Linear(n_hidden1, n_hidden2, bias=False)
-        self.hidden_layer3 = torch.nn.Linear(n_hidden2, n_hidden3, bias=False)
-        self.hidden_layer4 = torch.nn.Linear(n_hidden3, n_hidden4, bias=False)
-        self.hidden_layer5 = torch.nn.Linear(n_hidden4, n_hidden5, bias=False)
-
-        if act == 'tanh':
-            self.act_f = torch.tanh
-        elif act == 'relu':
-            self.act_f = F.relu
-
-
-    def forward(self, x):
-        x1 = self.act_f(self.hidden_layer1(x))
-        x2 = self.act_f(self.hidden_layer2(x1))
-        x3 = self.act_f(self.hidden_layer3(x2))
-        x4 = self.act_f(self.hidden_layer4(x3))
-        x5 = self.hidden_layer5(x4)
-        return x5
-
-
-class Net6S1(torch.nn.Module):
-    def __init__(self, n_features):
-        super(Net6S1, self).__init__()
-        self.hidden_layer1 = torch.nn.Linear(n_features, 500, bias=False)
-        self.hidden_layer2 = torch.nn.Linear(500 + n_features, 400, bias=False)
-        self.hidden_layer3 = torch.nn.Linear(400 + 500, 200, bias=False)
-        self.hidden_layer4 = torch.nn.Linear(200 + 400, 100, bias=False)
-        self.hidden_layer5 = torch.nn.Linear(100 + 200, 20, bias=False)
-
-    def forward(self, x):
-        x1 = F.relu(self.hidden_layer1(x))
-        x11 = torch.cat([x1, x], axis=1)
-
-        x2 = F.relu(self.hidden_layer2(x11))
-        x22 = torch.cat([x2, x1], axis=1)
-
-        x3 = F.relu(self.hidden_layer3(x22))
-        x33 = torch.cat([x3, x2], axis=1)
-
-        x4 = F.relu(self.hidden_layer4(x33))
-        x44 = torch.cat([x4, x3], axis=1)
-
-        # x5 = F.relu(self.hidden_layer5(x44))
-        x5 = self.hidden_layer5(x44)
-        return x5
-
-
-class Net6S2(torch.nn.Module):
-    def __init__(self, n_features):
-        super(Net6S2, self).__init__()
-        self.hidden_layer1 = torch.nn.Linear(n_features, 500, bias=False)
-        self.hidden_layer2 = torch.nn.Linear(500 + n_features, 400, bias=False)
-        self.hidden_layer3 = torch.nn.Linear(400 + n_features, 200, bias=False)
-        self.hidden_layer4 = torch.nn.Linear(200 + n_features, 100, bias=False)
-        self.hidden_layer5 = torch.nn.Linear(100 + n_features, 20, bias=False)
-
-    def forward(self, x):
-        x1 = F.relu(self.hidden_layer1(x))
-        x11 = torch.cat([x1, x], axis=1)
-
-        x2 = F.relu(self.hidden_layer2(x11))
-        x22 = torch.cat([x2, x], axis=1)
-
-        x3 = F.relu(self.hidden_layer3(x22))
-        x33 = torch.cat([x3, x], axis=1)
-
-        x4 = F.relu(self.hidden_layer4(x33))
-        x44 = torch.cat([x4, x], axis=1)
-
-        # x5 = F.relu(self.hidden_layer5(x44))
-        x5 = self.hidden_layer5(x44)
-        return x5
-
-
-class Net6S3(torch.nn.Module):
-    def __init__(self, n_features, n_hidden1=1000, n_hidden2=800, n_hidden3=500, n_hidden4=100,  n_emb=20):
-        super(Net6S3, self).__init__()
-        self.hidden_layer1 = torch.nn.Linear(n_features, n_hidden1, bias=False)
-        self.hidden_layer2 = torch.nn.Linear(n_hidden1 + n_features, n_hidden2, bias=False)
-        self.hidden_layer3 = torch.nn.Linear(n_hidden2 + n_hidden1 + n_features, n_hidden3, bias=False)
-        self.hidden_layer4 = torch.nn.Linear(n_hidden3 + n_hidden2 + n_hidden1 + n_features, n_hidden4, bias=False)
-        self.hidden_layer5 = torch.nn.Linear(n_hidden4 + n_hidden3 + n_hidden2 + n_hidden1 + n_features, n_emb, bias=False)
-
-    def forward(self, x):
-        x1 = torch.tanh(self.hidden_layer1(x))
-        x11 = torch.cat([x1, x], axis=1)
-
-        x2 = torch.tanh(self.hidden_layer2(x11))
-        x22 = torch.cat([x2, x1, x], axis=1)
-
-        x3 = torch.tanh(self.hidden_layer3(x22))
-        x33 = torch.cat([x3, x2, x1, x], axis=1)
-
-        x4 = torch.tanh(self.hidden_layer4(x33))
-        x44 = torch.cat([x4, x3, x2, x1, x], axis=1)
-
-        x5 = self.hidden_layer5(x44)
-        return x5
-
-
-class Net7S3(torch.nn.Module):
-    def __init__(self, n_features, n_hidden1=1200, n_hidden2=1000, n_hidden3=800, n_hidden4=500, n_hidden5=100,  n_emb=20):
-        super(Net7S3, self).__init__()
-        self.hidden_layer1 = torch.nn.Linear(n_features, n_hidden1, bias=False)
-        self.hidden_layer2 = torch.nn.Linear(n_hidden1 + n_features, n_hidden2, bias=False)
-        self.hidden_layer3 = torch.nn.Linear(n_hidden2 + n_hidden1 + n_features, n_hidden3, bias=False)
-        self.hidden_layer4 = torch.nn.Linear(n_hidden3 + n_hidden2 + n_hidden1 + n_features, n_hidden4, bias=False)
-        self.hidden_layer5 = torch.nn.Linear(n_hidden4 + n_hidden3 + n_hidden2 + n_hidden1 + n_features, n_hidden5, bias=False)
-        self.hidden_layer6 = torch.nn.Linear(n_hidden5 + n_hidden4 + n_hidden3 + n_hidden2 + n_hidden1 + n_features, n_emb, bias=False)
-
-    def forward(self, x):
-        x1 = torch.tanh(self.hidden_layer1(x))
-        x11 = torch.cat([x1, x], axis=1)
-
-        x2 = torch.tanh(self.hidden_layer2(x11))
-        x22 = torch.cat([x2, x1, x], axis=1)
-
-        x3 = torch.tanh(self.hidden_layer3(x22))
-        x33 = torch.cat([x3, x2, x1, x], axis=1)
-
-        x4 = torch.tanh(self.hidden_layer4(x33))
-        x44 = torch.cat([x4, x3, x2, x1, x], axis=1)
-
-        x5 = torch.tanh(self.hidden_layer5(x44))
-        x55 = torch.cat([x5, x4, x3, x2, x1, x], axis=1)
-
-        x6 = self.hidden_layer6(x55)
-        return x6
-
-
-class Net8S3(torch.nn.Module):
-    def __init__(self, n_features, n_hidden1=1500, n_hidden2=1200, n_hidden3=1000, n_hidden4=800,
-                 n_hidden5=500, n_hidden6=100,  n_emb=20):
-        super(Net8S3, self).__init__()
-        self.hidden_layer1 = torch.nn.Linear(n_features, n_hidden1, bias=False)
-        self.hidden_layer2 = torch.nn.Linear(n_hidden1 + n_features, n_hidden2, bias=False)
-        self.hidden_layer3 = torch.nn.Linear(n_hidden2 + n_hidden1 + n_features, n_hidden3, bias=False)
-        self.hidden_layer4 = torch.nn.Linear(n_hidden3 + n_hidden2 + n_hidden1 + n_features, n_hidden4, bias=False)
-        self.hidden_layer5 = torch.nn.Linear(n_hidden4 + n_hidden3 + n_hidden2 + n_hidden1 + n_features,
-                                             n_hidden5, bias=False)
-        self.hidden_layer6 = torch.nn.Linear(n_hidden5 + n_hidden4 + n_hidden3 + n_hidden2 + n_hidden1 + n_features,
-                                             n_hidden6, bias=False)
-        self.hidden_layer7 = torch.nn.Linear(n_hidden6 + n_hidden5 + n_hidden4 + n_hidden3 + n_hidden2 + n_hidden1 + n_features,
-                                             n_emb, bias=False)
-
-    def forward(self, x):
-        x1 = torch.tanh(self.hidden_layer1(x))
-        x11 = torch.cat([x1, x], axis=1)
-
-        x2 = torch.tanh(self.hidden_layer2(x11))
-        x22 = torch.cat([x2, x1, x], axis=1)
-
-        x3 = torch.tanh(self.hidden_layer3(x22))
-        x33 = torch.cat([x3, x2, x1, x], axis=1)
-
-        x4 = torch.tanh(self.hidden_layer4(x33))
-        x44 = torch.cat([x4, x3, x2, x1, x], axis=1)
-
-        x5 = torch.tanh(self.hidden_layer5(x44))
-        x55 = torch.cat([x5, x4, x3, x2, x1, x], axis=1)
-
-        x6 = torch.tanh(self.hidden_layer6(x55))
-        x66 = torch.cat([x6, x5, x4, x3, x2, x1, x], axis=1)
-
-        x7 = self.hidden_layer7(x66)
-
-        return x7
-
 
 
 class GRUNet(torch.nn.Module):
