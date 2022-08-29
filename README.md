@@ -12,6 +12,18 @@ Please consider citing our paper if you find this repository useful.
 }
 ```
 
+## Takeaways
+DIF provides easy APIs in a sklearn style, that is, we first instantiate the model class by giving the parameters  
+then, the instantiated model can be used to fit and predict data
+
+```python
+from algorithms.dif import DeepIsolationForest
+model_configs = {'n_ensemble':50, 'n_estimators':6}
+model = DeepIsolationForest(**model_configs)
+model.fit(X_train)
+score = model.predict(X_test)
+```
+
 
 ## Reproduction of experiment results
 All the experiment results reported in our paper can be well reproduced. 
