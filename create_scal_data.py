@@ -11,6 +11,7 @@ if sys.platform == 'win32':
 else:
     dataset_root = f'/home/{getpass.getuser()}/dataset/scal_data/'
 
+
 os.makedirs(dataset_root, exist_ok=True)
 def generate_data(n_nor, n_ano, dim, n_nor_c=5, n_ano_c=5):
     # normal class with "n_nor_c" clusters
