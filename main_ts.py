@@ -1,8 +1,3 @@
-"""
-running DIF on Multi-variate time-series data
-Please note that MSL and SMAP contain multiple entities, and thus we report the average performance over all the entities,
-as has been done in many related studies.
-"""
 
 import os
 import argparse

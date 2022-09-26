@@ -136,9 +136,3 @@ for f in data_lst:
     print(txt, file=f)
     print(txt)
     f.close()
-
-
-# # done, rename result file
-# os.rename(result_file, result_file.replace('.csv', '_done.csv'))
-
-
