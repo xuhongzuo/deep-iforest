@@ -1,11 +1,11 @@
-from sklearn import metrics
-from glob import glob
 import os
 import numpy as np
 import pandas as pd
-
 import re
 import networkx as nx
+from sklearn.preprocessing import MinMaxScaler
+from sklearn import metrics
+from glob import glob
 
 
 def data_preprocessing(df):

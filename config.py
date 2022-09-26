@@ -1,25 +1,13 @@
+from algorithms import *
+
 
 def get_algo_class(algo):
-    if algo == 'dif' or algo == 'semi_dif':
-        from algorithms.dif import DeepIsolationForest
-        return DeepIsolationForest
-    # ablation
-    elif algo == 'dif_optim_ae':
-        from algorithms.dif_optim_ae import DeepIsolationForestAEOptim
-        return DeepIsolationForestAEOptim
-    elif algo == 'dif_optim_dsvdd':
-        from algorithms.dif_optim_dsvdd import DeepIsolationForestDSVDDOptim
-        return DeepIsolationForestDSVDDOptim
+    algo_dic = {
+        'dif': DIF,
+    }
+    if algo in algo_dic:
+        return algo_dic[algo]
 
-    elif algo == 'dif_knn':
-        from algorithms.dif_abla import DeepRRabla
-        return DeepRRabla
-    elif algo == 'dif_lof':
-        from algorithms.dif_abla import DeepRRabla
-        return DeepRRabla
-    elif algo == 'dif_copod':
-        from algorithms.dif_abla import DeepRRabla
-        return DeepRRabla
     else:
         raise NotImplementedError("")
 
@@ -27,13 +15,15 @@ def get_algo_class(algo):
 def get_algo_config(algo):
     configs = {
         'dif': {
+            'ensemble_method': 'batch',
             'n_ensemble': 50,
             'n_estimators': 6,
             'max_samples': 256,
-            'n_processes': 1,
-            'network_name': 'layer4-skip3',
+            'batch_size': 64,
+            'network_name': 'mlp',
             'data_type': 'tabular',
         },
+
         'eif': {
             'n_estimators': 300,
             'sample_size': 256,

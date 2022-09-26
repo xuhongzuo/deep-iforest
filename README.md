@@ -17,37 +17,12 @@ DIF provides easy APIs in a sklearn style, that is, we first instantiate the mod
 then, the instantiated model can be used to fit and predict data
 
 ```python
-from algorithms.dif import DeepIsolationForest
+from algorithms.dif import DIF
 model_configs = {'n_ensemble':50, 'n_estimators':6}
-model = DeepIsolationForest(**model_configs)
+model = DIF(**model_configs)
 model.fit(X_train)
 score = model.predict(X_test)
 ```
-
-
-## Reproduction of experiment results
-
-#### experiments on tabular data (Sec. 5.2.1)
-use `python main.py --runs 10 --model dif` to run our model DIF,  
-
-#### experiments on graph and time-series data (Sec. 5.2.2)
-use `python main_graph.py --runs 10 --model dif` to perform the experiments on graph data  
-GLocalKD and InfoGraph can be directly used after downloading their implementation from GitHub. 
-
-use `python main_ts.py --runs 10 --model dif` to perform experiments on time-series data
-TranAD is also publicly available and can be directly used after downloading from GitHub.
-
-#### Scalability Test (Sec. 5.3)
-The synthetic datasets can be created by `create_scal_data.py`.  
-we record the training time in the final record files. After each running, a record file will be generated. 
-
-#### Robustness w.r.t. Contamination Ratios (Sec. 5.4)
-Please add `--contamination 0.1` when performing `main.py`
-
-#### Ablation study (Sec. 5.5)
-Five ablated varients DIF-AE, DIF-DSVDD, RR-COPOD, RR-KNN, and RR-LOF are supported in this project as well. 
-
-
 
 
 ---

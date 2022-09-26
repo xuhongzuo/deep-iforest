@@ -14,7 +14,7 @@ dataset_root = 'data'
 parser = argparse.ArgumentParser()
 parser.add_argument("--runs", type=int, default=1,
                     help="how many times we repeat the experiments to obtain the average performance")
-parser.add_argument("--input_dir", type=str, default='tabular/', help="the path of the data sets")
+parser.add_argument("--input_dir", type=str, default='tabular', help="the path of the data sets")
 parser.add_argument("--output_dir", type=str, default='&tabular_record/',
                     help="the output file path")
 parser.add_argument("--dataset", type=str, default='FULL',
@@ -50,7 +50,8 @@ result_file = os.path.join(args.output_dir, f'{args.model}.{args.input_dir}.{arg
 if not args.silent_header:
     f = open(result_file, 'a')
     print('\n---------------------------------------------------------', file=f)
-    print(f'model: {args.model}, data dir: {args.input_dir}, dataset: {args.dataset}, contamination: {args.contamination}, {args.runs}runs, ', file=f)
+    print(f'model: {args.model}, data dir: {args.input_dir}, dataset: {args.dataset}, '
+          f'contamination: {args.contamination}, {args.runs}runs, ', file=f)
     for k in model_configs.keys():
         print(f'Parameters,\t [{k}], \t\t  {model_configs[k]}', file=f)
     print(f'Note: {args.note}', file=f)
