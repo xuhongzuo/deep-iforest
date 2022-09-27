@@ -8,15 +8,16 @@ import utils
 from collections import Counter
 from config import get_algo_config, get_algo_class
 from torch_geometric.datasets import TUDataset
-
+import getpass
 
 
 dataset_root = 'data/'
+# dataset_root = f'/home/{getpass.getuser()}/dataset/6-pyGdata/'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--runs", type=int, default=1,
                     help="how many times we repeat the experiments to obtain the average performance")
-parser.add_argument("--input_dir", type=str, default='graph/', help="the path of the data sets")
+parser.add_argument("--input_dir", type=str, default='', help="the path of the data sets")
 parser.add_argument("--output_dir", type=str, default='&graph_record/',
                     help="the output file path")
 parser.add_argument("--dataset", type=str,
