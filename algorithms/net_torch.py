@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Implementation of Neural Networks in PyTorch
 # @Time    : 2022/8/19
-# @Author  : Xu Hongzuo
+# @Author  : Xu Hongzuo (hongzuo.xu@gmail.com)
 
 
 import numpy as np
@@ -140,10 +140,29 @@ class AEnet(torch.nn.Module):
 
 
 class LinearBlock(torch.nn.Module):
-    """Linear layer with support to concatenation-based skip connection and batch ensemble"""
+    """
+    Linear layer block with support of concatenation-based skip connection and batch ensemble
+    Parameters
+    ----------
+    in_channels: int
+        input dimensionality
+    out_channels: int
+        output dimensionality
+    bias: bool (default=False)
+        bias term in linear layer
+    activation: string, choices=['tanh', 'sigmoid', 'leaky_relu', 'relu'] (default='tanh')
+        the name of activation function
+    skip_connection: string or None, default=None
+        'concat' use concatenation to implement skip connection
+    dropout: float or None, default=None
+        the dropout rate
+    be_size: int or None, default=None
+        the number of ensemble size
+    """
     def __init__(self, in_channels, out_channels,
                  bias=False, activation='tanh',
                  skip_connection=None, dropout=None, be_size=None):
+
         super(LinearBlock, self).__init__()
 
         self.act = activation

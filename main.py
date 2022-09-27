@@ -18,7 +18,7 @@ parser.add_argument("--input_dir", type=str, default='tabular', help="the path o
 parser.add_argument("--output_dir", type=str, default='&tabular_record/',
                     help="the output file path")
 parser.add_argument("--dataset", type=str, default='FULL',
-                    help="FULL represents all the csv file in the folder, or a list of data set names splitted by comma")
+                    help="FULL represents all the csv file in the folder, or a list of data set names split by comma")
 parser.add_argument("--model", type=str, default='dif')
 parser.add_argument('--contamination', type=float, default=-1,
                     help='this is used to estimate robustness w.r.t. anomaly contamination')
@@ -26,7 +26,6 @@ parser.add_argument('--silent_header', action='store_true')
 parser.add_argument('--save_rep', action='store_true')
 parser.add_argument('--save_score', action='store_true')
 parser.add_argument("--flag", type=str, default='')
-parser.add_argument("--note", type=str, default='')
 
 parser = parser_add_model_argument(parser)
 args = parser.parse_args()
@@ -54,7 +53,6 @@ if not args.silent_header:
           f'contamination: {args.contamination}, {args.runs}runs, ', file=f)
     for k in model_configs.keys():
         print(f'Parameters,\t [{k}], \t\t  {model_configs[k]}', file=f)
-    print(f'Note: {args.note}', file=f)
     print('---------------------------------------------------------', file=f)
     print('data, auc-roc, std, auc-pr, std, time', file=f)
     f.close()
@@ -89,7 +87,6 @@ for f in data_lst:
         clf.fit(x_train)
         t1 = time.time()
         scores = clf.decision_function(x)
-
 
         # # ------ significance of synergy: replacing the random representation ensemble ------ # #
         if args.save_rep and hasattr(clf, "x_reduced_lst"):

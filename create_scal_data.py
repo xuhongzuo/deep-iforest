@@ -1,16 +1,10 @@
 import numpy as np
 import pandas as pd
 import os
-import sys
-import getpass
-from tqdm import tqdm, trange
+from tqdm import trange
 
 
-if sys.platform == 'win32':
-    dataset_root = f'E:/dataset/scal_data/'
-else:
-    dataset_root = f'/home/{getpass.getuser()}/dataset/scal_data/'
-
+dataset_root = f'data/scal_data/'
 
 os.makedirs(dataset_root, exist_ok=True)
 def generate_data(n_nor, n_ano, dim, n_nor_c=5, n_ano_c=5):

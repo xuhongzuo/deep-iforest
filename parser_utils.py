@@ -1,6 +1,7 @@
 
 
 def parser_add_model_argument(parser):
+    """add parameters of DIF into parser"""
     parser.add_argument('--n_ensemble', type=int, default=50)
 
     # parameters of DIF
@@ -20,6 +21,7 @@ def parser_add_model_argument(parser):
     return parser
 
 def update_model_configs(args, model_configs):
+    """update model configs by args"""
     model_configs['n_ensemble'] = args.n_ensemble
     model_configs['rep_dim'] = args.rep_dim
     model_configs['hidden_dim'] = args.hidden_dim

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Implementation of Deep Isolation Forest
 # @Time    : 2022/8/19
-# @Author  : Xu Hongzuo
+# @Author  : Xu Hongzuo (hongzuo.xu@gmail.com)
 
 import numpy as np
 import torch
@@ -18,6 +18,9 @@ from algorithms import net_torch
 
 
 class DIF:
+    """
+    Class of Deep isolation forest 
+    """
     def __init__(self, network_name='mlp', network_class=None, representation_lst=None,
                  ensemble_method='batch', n_ensemble=50, n_estimators=6, max_samples=256,
                  hidden_dim=[500,100], rep_dim=20, skip_connection=None, dropout=None, activation='tanh',
@@ -29,6 +32,8 @@ class DIF:
 
         if ensemble_method not in ['naive', 'batch']:
             raise NotImplementedError('')
+        if data_type not in ['tabular', 'graph', 'ts']:
+            raise NotImplementedError('unsupported data type')
 
         self.data_type = data_type
         self.ensemble_method = ensemble_method
@@ -168,7 +173,6 @@ class DIF:
         return test_reduced_lst
 
     def inference_scoring(self, x_reduced_lst, n_processes):
-
         if self.new_score_func:
             score_func = self.single_predict
         else:
@@ -279,11 +283,11 @@ class DIF:
 
     @staticmethod
     def single_predict(x_reduced, clf):
-        scores = cal_score(x_reduced, clf)
+        scores = _cal_score(x_reduced, clf)
         return scores
 
 
-def cal_score(xx, clf):
+def _cal_score(xx, clf):
     depths = np.zeros((xx.shape[0], len(clf.estimators_)))
     depth_sum = np.zeros(xx.shape[0])
     deviations = np.zeros((xx.shape[0], len(clf.estimators_)))
@@ -393,28 +397,6 @@ def cal_score(xx, clf):
 
     scores = scores * deviation
     return scores
-
-
-def get_depth(x_reduced, clf):
-    n_samples = x_reduced.shape[0]
-
-    depths = np.zeros((n_samples, len(clf.estimators_)))
-    depth_sum = np.zeros(n_samples)
-    for ii, (tree, features) in enumerate(zip(clf.estimators_, clf.estimators_features_)):
-        leaves_index = tree.apply(x_reduced)
-        node_indicator = tree.decision_path(x_reduced)
-        n_samples_leaf = tree.tree_.n_node_samples[leaves_index]
-
-        # node_indicator is a sparse matrix, indicating the path of input data samples
-        # with shape (n_samples, n_nodes)
-        # each layer would result in a non-zero element in this matrix,
-        # and then the row-wise summation is the depth of data sample
-        d = (np.ravel(node_indicator.sum(axis=1)) + _average_path_length(n_samples_leaf) - 1.0)
-        depths[:, ii] = d
-        depth_sum += d
-
-    scores = 2 ** (-depth_sum / (len(clf.estimators_) * _average_path_length([clf.max_samples_])))
-    return depths, scores
 
 
 def _average_path_length(n_samples_leaf):

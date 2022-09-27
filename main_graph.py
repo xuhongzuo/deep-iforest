@@ -8,11 +8,9 @@ import utils
 from collections import Counter
 from config import get_algo_config, get_algo_class
 from torch_geometric.datasets import TUDataset
-import getpass
 
 
 dataset_root = 'data/'
-# dataset_root = f'/home/{getpass.getuser()}/dataset/6-pyGdata/'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--runs", type=int, default=1,
