@@ -1,62 +1,74 @@
+# -*- coding: utf-8 -*-
+# Implementation of Deep Isolation Forest
+# @Time    : 2022/8/19
+# @Author  : Xu Hongzuo
+
 import numpy as np
-import networkx as nx
 import torch
+import random
+import time
 from sklearn.utils import check_array
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import IsolationForest
-from torch.utils.data import DataLoader
-from algorithms.dif_pkg import net_util
 from tqdm import tqdm
+from multiprocessing import Pool
+from torch.utils.data import DataLoader
+from torch_geometric.loader import DataLoader as pyGDataLoader
+from algorithms import net_torch
 
 
-class DeepIsolationForest:
-    def __init__(self, network_name='layer4', network=None, n_ensemble=50, n_estimators=6, max_samples=256,
-                 n_jobs=1, random_state=42, n_processes=15, data_type='tabular',
-                 batch_size=10000, device='cuda', graph_feature_type='default',
-                 verbose=2,
-                 **network_args):
+class DIF:
+    def __init__(self, network_name='mlp', network_class=None, representation_lst=None,
+                 ensemble_method='batch', n_ensemble=50, n_estimators=6, max_samples=256,
+                 hidden_dim=[500,100], rep_dim=20, skip_connection=None, dropout=None, activation='tanh',
+                 n_jobs=1, random_state=42, data_type='tabular',
+                 batch_size=64, device='cuda', n_processes=1,
+                 new_score_func=1, post_scal=1,
+                 verbose=0, **network_args):
+        # super(DeepIsolationForest, self).__init__(contamination=contamination)
 
-        self.network_name = network_name
-        self.net = net_util.choose_net(network_name)
-        if network is not None:
-            self.net = network
-        self.network_args = network_args
+        if ensemble_method not in ['naive', 'batch']:
+            raise NotImplementedError('')
 
-        if network_name.startswith('layer'):
-            n_layer = int(network_name[5]) - 2
-            is_skip = 1 if network_name.endswith('skip') else 0
-            hidden_size = [1200, 800, 500, 100]
-            self.network_args['n_hidden'] = hidden_size[-n_layer::]
-            self.network_args['skip_connection'] = is_skip
-
-        print(f'network additional parameters: {network_args}')
-
+        self.data_type = data_type
+        self.ensemble_method = ensemble_method
         self.n_ensemble = n_ensemble
         self.n_estimators = n_estimators
         self.max_samples = max_samples
         self.n_jobs = n_jobs
-        self.rng = random_state
-        self.n_processes = n_processes
-
-
         self.batch_size = batch_size
+
+        self.new_score_func = new_score_func
+        self.post_scal = post_scal
+
         self.device = device
-        self.graph_feature_type = graph_feature_type
+        self.n_processes = n_processes
+        self.verbose = verbose
 
-        self.data_type = data_type
+        self.network_args = network_args
+        self.Net = net_torch.choose_net(network_name)
+        if network_name == 'mlp':
+            self.network_args['n_hidden'] = hidden_dim
+            self.network_args['n_emb'] = rep_dim
+            self.network_args['skip_connection'] = skip_connection
+            self.network_args['dropout'] = dropout
+            self.network_args['activation'] = activation
+            self.network_args['be_size'] = None if self.ensemble_method == 'naive' else self.n_ensemble
+        elif network_name == 'gin':
+            self.network_args['activation'] = activation
+        if network_class is not None:
+            self.Net = network_class
+        print(f'network additional parameters: {network_args}')
 
+        self.transfer_flag = True
+
+        self.n_features = -1
         self.net_lst = []
-        self.iForest_lst = []
+        self.clf_lst = []
         self.x_reduced_lst = []
         self.score_lst = []
 
-        self.decision_scores_ = None
-
-        if self.rng is not None:
-            np.random.seed(self.rng)
-
-        self.verbose = verbose
-
+        self.set_seed(random_state)
         return
 
     def fit(self, X, y=None):
@@ -73,81 +85,32 @@ class DeepIsolationForest:
         self : object
             Fitted estimator.
         """
-
-        if self.data_type == 'tabular' or self.data_type == 'ts':
-            # tabular data are in 2-dim data, n_features should be X.shape[1]
-            # ts data are in 3-dim data, n_features should be in X.shape[2]
-            n_features = X.shape[-1]
-        elif self.data_type == 'graph':
-            n_features = max(X.num_features, 1)
-        else:
-            raise NotImplementedError('')
-
-        ensemble_seeds = np.random.randint(0, 100000, self.n_ensemble)
+        start_time = time.time()
+        self.n_features = X.shape[-1] if self.data_type != 'graph' else max(X.num_features, 1)
+        ensemble_seeds = np.random.randint(0, 1e+5, self.n_ensemble)
 
         if self.verbose >= 2:
-            net = self.net(n_features=n_features, **self.network_args)
+            net = self.Net(n_features=self.n_features, **self.network_args)
             print(net)
 
-        # for each ensemble
-        try:
-            with tqdm(range(self.n_ensemble)) as pbar:
-                pbar.set_description('Deep transfer ensemble:')
-                for i in pbar:
-                    # -------------------------------- for tabular data -------------------------- #
-                    if self.data_type == 'tabular':
-                        net = self.net(n_features=n_features, **self.network_args)
+        self.training_transfer(X, ensemble_seeds)
 
-                        torch.manual_seed(ensemble_seeds[i])
-                        for m in net.modules():
-                            if isinstance(m, torch.nn.Linear):
-                                torch.nn.init.normal_(m.weight, mean=0., std=1.)
+        if self.verbose >= 2:
+            it = tqdm(range(self.n_ensemble), desc='clf fitting', ncols=80)
+        else:
+            it = range(self.n_ensemble)
 
-                        x_tensor = torch.from_numpy(X).float()
-                        x_reduced = net(x_tensor).data.numpy()
+        for i in it:
+            self.clf_lst.append(
+                IsolationForest(n_estimators=self.n_estimators,
+                                max_samples=self.max_samples,
+                                n_jobs=self.n_jobs,
+                                random_state=ensemble_seeds[i])
+            )
+            self.clf_lst[i].fit(self.x_reduced_lst[i])
 
-                        ss = StandardScaler()
-                        x_reduced = ss.fit_transform(x_reduced)
-                        x_reduced = np.tanh(x_reduced)
-
-                    # -------------------------------- for ts data -------------------------- #
-                    elif self.data_type == 'ts':
-                        net = self.net(n_features=n_features, **self.network_args)
-                        net = net.to(self.device)
-
-                        torch.manual_seed(ensemble_seeds[i])
-                        for name, param in net.named_parameters():
-                            torch.nn.init.normal_(param, mean=0., std=1.)
-                        x_reduced = self.deep_transfer(X, net, self.batch_size, self.device)
-
-                    # -------------------------------- for graph data -------------------------- #
-                    elif self.data_type == 'graph':
-                        net = self.net(n_features=n_features, **self.network_args)
-                        net = net.to(self.device)
-
-                        torch.manual_seed(ensemble_seeds[i])
-                        for m in net.modules():
-                            if isinstance(m, torch.nn.Linear):
-                                torch.nn.init.normal_(m.weight.data, mean=0., std=1.)
-
-                        x_reduced = self.graph_deep_transfer(X, net, self.batch_size, self.device)
-
-                    else:
-                        raise NotImplementedError('')
-
-
-                    self.x_reduced_lst.append(x_reduced)
-                    self.net_lst.append(net)
-                    self.iForest_lst.append(IsolationForest(n_estimators=self.n_estimators,
-                                                            max_samples=self.max_samples,
-                                                            n_jobs=self.n_jobs,
-                                                            random_state=ensemble_seeds[i]))
-                    self.iForest_lst[i].fit(x_reduced)
-        except KeyboardInterrupt:
-            pbar.close()
-            raise
-        pbar.close()
-
+        if self.verbose >= 1:
+            print(f'training done, time: {time.time()-start_time:.1f}')
         return self
 
     def decision_function(self, X):
@@ -166,79 +129,158 @@ class DeepIsolationForest:
             The anomaly score of the input samples.
         """
 
-        x_reduced_lst = []
-        try:
-            with tqdm(range(self.n_ensemble)) as pbar:
-                pbar.set_description('testing deep transfer ensemble:')
+        test_reduced_lst = self.inference_transfer(X)
+        final_scores = self.inference_scoring(test_reduced_lst, n_processes=self.n_processes)
+        return final_scores
 
-                for i in pbar:
-                    if self.data_type == 'tabular':
-                        if X.shape[0] != self.x_reduced_lst[0].shape[0]:
-                            x_reduced = self.net_lst[i](torch.from_numpy(X).float()).data.numpy()
-                            ss = StandardScaler()
-                            x_reduced = ss.fit_transform(x_reduced)
-                            x_reduced = np.tanh(x_reduced)
-                        else:
-                            # transductive learning in tabular data, testing set is identical with training set
-                            x_reduced = self.x_reduced_lst[i]
+    def training_transfer(self, X, ensemble_seeds):
+        if self.ensemble_method == 'naive':
+            for i in tqdm(range(self.n_ensemble), desc='training ensemble process', ncols=100, leave=None):
+                self.set_seed(ensemble_seeds[i])
+                net = self.Net(n_features=self.n_features, **self.network_args).to(self.device)
+                self.net_init(net)
 
-                    elif self.data_type == 'ts':
-                        x_reduced = self.deep_transfer(X, self.net_lst[i], self.batch_size, self.device)
+                self.x_reduced_lst.append(self.deep_transfer(X, net))
+                self.net_lst.append(net)
+        elif self.ensemble_method == 'batch':
+            self.set_seed(ensemble_seeds[0])
+            net = self.Net(n_features=self.n_features, **self.network_args).to(self.device)
+            self.net_init(net)
 
-                    elif self.data_type == 'graph':
-                        x_reduced = self.graph_deep_transfer(X, self.net_lst[i], self.batch_size, self.device)
+            self.x_reduced_lst = self.deep_transfer_batch_ensemble(X, net)
+            self.net_lst.append(net)
 
-                    else:
-                        raise NotImplementedError('')
-                    x_reduced_lst.append(x_reduced)
+        return
 
-        except KeyboardInterrupt:
-            pbar.close()
-            raise
-        pbar.close()
+    def inference_transfer(self, X):
+        if self.data_type == 'tabular' and X.shape[0] == self.x_reduced_lst[0].shape[0]:
+            return self.x_reduced_lst
 
+        test_reduced_lst = []
+        if self.ensemble_method == 'naive':
+            for i in tqdm(range(self.n_ensemble), desc='testing ensemble process', ncols=100, leave=None):
+                x_reduced = self.deep_transfer(X, self.net_lst[i])
+                test_reduced_lst.append(x_reduced)
+
+        elif self.ensemble_method == 'batch':
+            test_reduced_lst = self.deep_transfer_batch_ensemble(X, self.net_lst[0])
+
+        return test_reduced_lst
+
+    def inference_scoring(self, x_reduced_lst, n_processes):
+
+        if self.new_score_func:
+            score_func = self.single_predict
+        else:
+            score_func = self.single_predict_abla
 
         n_samples = x_reduced_lst[0].shape[0]
         self.score_lst = np.zeros([self.n_ensemble, n_samples])
-        for i in range(self.n_ensemble):
-            scores = single_predict(x_reduced_lst[i], self.iForest_lst[i])
-            self.score_lst[i] = scores
-        final_scores = np.average(self.score_lst, axis=0)
+        if n_processes == 1:
+            for i in range(self.n_ensemble):
+                scores = score_func(x_reduced_lst[i], self.clf_lst[i])
+                self.score_lst[i] = scores
+        else:
+            # multiprocessing predict
+            start = np.arange(0, self.n_ensemble, np.ceil(self.n_ensemble / n_processes))
+            for j in range(int(np.ceil(self.n_ensemble / n_processes))):
+                run_id = start + j
+                run_id = np.array(np.delete(run_id, np.where(run_id >= self.n_ensemble)), dtype=int)
+                if self.verbose >= 1:
+                    print('Multi-processing Running ensemble id :', run_id)
 
+                pool = Pool(processes=n_processes)
+                process_lst = [pool.apply_async(score_func, args=(x_reduced_lst[i], self.clf_lst[i]))
+                               for i in run_id]
+                pool.close()
+                pool.join()
+
+                for rid, process in zip(run_id, process_lst):
+                    self.score_lst[rid] = process.get()
+
+        final_scores = np.average(self.score_lst, axis=0)
 
         return final_scores
 
-    @staticmethod
-    def deep_transfer(X, net, batch_size, device):
+
+    def deep_transfer(self, X, net):
         x_reduced = []
-        loader = DataLoader(dataset=X, batch_size=batch_size, drop_last=False, pin_memory=True, shuffle=False)
-        for batch_x in loader:
-            batch_x = batch_x.float().to(device)
-            batch_x_reduced = net(batch_x).data.cpu().numpy()
-            x_reduced.extend(batch_x_reduced)
-        x_reduced = np.array(x_reduced)
+
+        with torch.no_grad():
+            if self.data_type != 'graph':
+                loader = DataLoader(X, batch_size=self.batch_size, drop_last=False, pin_memory=True, shuffle=False)
+                for batch_x in loader:
+                    batch_x = batch_x.float().to(self.device)
+                    batch_x_reduced = net(batch_x)
+                    x_reduced.append(batch_x_reduced)
+            else:
+                loader = pyGDataLoader(X, batch_size=self.batch_size, shuffle=False, pin_memory=True, drop_last=False)
+                for data in loader:
+                    data.to(self.device)
+                    x, edge_index, batch = data.x, data.edge_index, data.batch
+                    if x is None:
+                        x = torch.ones((batch.shape[0], 1)).to(self.device)
+                    x, _ = net(x, edge_index, batch)
+                    x_reduced.append(x)
+
+        x_reduced = torch.cat(x_reduced).data.cpu().numpy()
+
+        if self.post_scal:
+            x_reduced = StandardScaler().fit_transform(x_reduced)
+            x_reduced = np.tanh(x_reduced)
         return x_reduced
 
-    @staticmethod
-    def graph_deep_transfer(X, net, batch_size, device):
-        from torch_geometric.data import DataLoader as pyGDataLoader
+    def deep_transfer_batch_ensemble(self, X, net):
         x_reduced = []
-        loader = pyGDataLoader(X, batch_size=batch_size, shuffle=False, pin_memory=True, drop_last=False)
-        for data in loader:
-            data.to(device)
-            x, edge_index, batch = data.x, data.edge_index, data.batch
-            if x is None:
-                x = torch.ones((batch.shape[0], 1)).to(device)
-            x, _ = net(x, edge_index, batch)
-            x_reduced.extend(x.data.cpu().numpy())
 
-        x_reduced = np.array(x_reduced)
-        return x_reduced
+        with torch.no_grad():
+            loader = DataLoader(X, batch_size=self.batch_size, drop_last=False, pin_memory=True, shuffle=False)
+            for batch_x in loader:
+                batch_x = batch_x.float().to(self.device)
+                batch_x_reduced = net(batch_x)
 
+                batch_x_reduced = batch_x_reduced.reshape([self.n_ensemble, batch_x.shape[0], -1])
+                x_reduced.append(batch_x_reduced)
 
-def single_predict(x_reduced, clf):
-    scores = cal_score(x_reduced, clf)
-    return scores
+        x_reduced_lst = [torch.cat([x_reduced[i][j] for i in range(len(x_reduced))]).data.cpu().numpy()
+                         for j in range(x_reduced[0].shape[0])]
+
+        if self.post_scal:
+            for i in range(len(x_reduced_lst)):
+                xx = x_reduced_lst[i]
+                xx = StandardScaler().fit_transform(xx)
+                xx = np.tanh(xx)
+                x_reduced_lst[i] = xx
+
+        return x_reduced_lst
+
+    @staticmethod
+    def net_init(net):
+        for name, param in net.named_parameters():
+            if name.endswith('weight'):
+                torch.nn.init.normal_(param, mean=0., std=1.)
+        return
+
+    @staticmethod
+    def set_seed(seed):
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+
+    @staticmethod
+    def single_predict_abla(x_reduced, clf):
+        scores = clf.decision_function(x_reduced)
+        scores = -1 * scores
+        return scores
+
+    @staticmethod
+    def single_predict(x_reduced, clf):
+        scores = cal_score(x_reduced, clf)
+        return scores
 
 
 def cal_score(xx, clf):
@@ -310,14 +352,47 @@ def cal_score(xx, clf):
         dev = mat.sum(axis=1)/(exist.sum(axis=1)+1e-6)
         deviations[:, ii] = dev
 
+        # # slow implementation of deviation calculation
+        # t1 = time.time()
+        # # calculate deviation in each node of the path
+        # # node_deviation_matrix = np.full([xx.shape[0], node_indicator.shape[1]], np.nan)
+        # for j in range(xx.shape[0]):
+        #     node = np.where(node_indicator[j] == 1)[0]
+        #     this_feature_lst = feature_lst[node]
+        #     this_threshold_lst = threshold_lst[node]
+        #     n_samples_lst = n_node_samples[node]
+        #     leaf_samples[j][ii] = n_samples_lst[-1]
+        #
+        #     deviation = np.abs(xx[j][this_feature_lst[:-1]] - this_threshold_lst[:-1])
+        #     if deviation.shape[0] == 0:
+        #         print(this_feature_lst[:-1]);print(feature_lst, n_node)
+        #
+        #     # # directly use mean
+        #     deviation = np.mean(deviation)
+        #     deviations[j][ii] = deviation
+        # print(2, time.time() - t1)
+
+        # # padding node deviation matrix, and use node mean
+        # node_deviation_matrix = pd.DataFrame(node_deviation_matrix)
+        # for c in node_deviation_matrix.columns:
+        #     node_deviation_matrix[c] = node_deviation_matrix[c].fillna(node_deviation_matrix[c].mean())
+        #     if pd.isna(node_deviation_matrix[c].mean()):
+        #         node_deviation_matrix.drop(c, axis=1, inplace=True)
+        #         # node_deviation_matrix[c] = 0
+        # node_deviation_matrix = node_deviation_matrix.values
+        # deviations[:, ii] = np.mean(node_deviation_matrix, axis=1)
+
     scores = 2 ** (-depth_sum / (len(clf.estimators_) * _average_path_length([clf.max_samples_])))
     deviation = np.mean(deviations, axis=1)
     leaf_sample = (clf.max_samples_ - np.mean(leaf_samples, axis=1)) / clf.max_samples_
 
-    scores = scores * deviation
-    # scores = scores * deviation * leaf_sample
-    return scores
+    # print()
+    # print('s', scores)
+    # print(deviation)
+    # print(leaf_sample)
 
+    scores = scores * deviation
+    return scores
 
 
 def get_depth(x_reduced, clf):
@@ -377,94 +452,3 @@ def _average_path_length(n_samples_leaf):
 
     return average_path_length.reshape(n_samples_leaf_shape)
 
-
-class GraphData(torch.utils.data.Dataset):
-    """Sample graphs and nodes in graph"""
-
-    def __init__(self, G_list, features='default', normalize=True, max_num_nodes=0):
-        self.adj_all = []
-        self.len_all = []
-        self.feature_all = []
-        self.label_all = []
-
-        self.assign_feat_all = []
-        self.max_num_nodes = max_num_nodes
-
-        if features == 'default':
-            self.feat_dim = node_dict(G_list[0])[0]['feat'].shape[0]
-        elif features == 'node_label':
-            self.feat_dim = node_dict(G_list[0])[0]['label'].shape[0]
-
-        for G in G_list:
-            adj = np.array(nx.to_numpy_matrix(G))
-            if normalize:
-                sqrt_deg = np.diag(1.0 / np.sqrt(np.sum(adj, axis=0, dtype=float).squeeze()))
-                adj = np.matmul(np.matmul(sqrt_deg, adj), sqrt_deg)
-            self.adj_all.append(adj)
-            self.len_all.append(G.number_of_nodes())
-            self.label_all.append(G.graph['label'])
-            # attributed graph?
-            if features == 'default':
-                f = np.zeros((self.max_num_nodes, self.feat_dim), dtype=float)
-                for i, u in enumerate(G.nodes()):
-                    f[i, :] = node_dict(G)[u]['feat']
-                self.feature_all.append(f)
-            # for graph that does not have node features
-            elif features == 'deg-num':
-                degs = np.sum(np.array(adj), 1)
-                if self.max_num_nodes > G.number_of_nodes():
-                    degs = np.expand_dims(np.pad(degs, (0, self.max_num_nodes - G.number_of_nodes()),
-                                                 'constant', constant_values=0), axis=1)
-                elif self.max_num_nodes < G.number_of_nodes():
-                    deg_index = np.argsort(degs, axis=0)
-                    deg_ind = deg_index[0: G.number_of_nodes() - self.max_num_nodes]
-                    degs = np.delete(degs, [deg_ind], axis=0)
-                    degs = np.expand_dims(degs, axis=1)
-                else:
-                    degs = np.expand_dims(degs, axis=1)
-                self.feature_all.append(degs)
-            elif features == 'node_label':
-                f = np.zeros((self.max_num_nodes, self.feat_dim), dtype=float)
-                for i, u in enumerate(G.nodes()):
-                    f[i, :] = node_dict(G)[u]['label']
-                self.feature_all.append(f)
-
-
-
-            self.assign_feat_all.append(self.feature_all[-1])
-
-        self.feat_dim = self.feature_all[0].shape[1]
-        self.assign_feat_dim = self.assign_feat_all[0].shape[1]
-
-    def __len__(self):
-        return len(self.adj_all)
-
-    def __getitem__(self, idx):
-        adj = self.adj_all[idx]
-        num_nodes = adj.shape[0]
-        if self.max_num_nodes > num_nodes:
-            adj_padded = np.zeros((self.max_num_nodes, self.max_num_nodes))
-            adj_padded[:num_nodes, :num_nodes] = adj
-        elif self.max_num_nodes < num_nodes:
-            degs = np.sum(np.array(adj), 1)
-            deg_index = np.argsort(degs, axis=0)
-            deg_ind = deg_index[0:num_nodes - self.max_num_nodes]
-            adj_padded = np.delete(adj, [deg_ind], axis=0)
-            adj_padded = np.delete(adj_padded, [deg_ind], axis=1)
-        else:
-            adj_padded = adj
-
-        return {'adj': adj_padded,
-                'feats': self.feature_all[idx].copy(),
-                'label': self.label_all[idx],
-                # 'num_nodes': num_nodes,
-                # 'assign_feats':self.assign_feat_all[idx].copy()
-                }
-
-
-def node_dict(G):
-    if float(nx.__version__[:3]) > 2.1:
-        dict_ = G.nodes
-    else:
-        dict_ = G.node
-    return dict_

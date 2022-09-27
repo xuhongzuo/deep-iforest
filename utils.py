@@ -1,11 +1,23 @@
-from sklearn import metrics
-from glob import glob
 import os
 import numpy as np
 import pandas as pd
-
 import re
 import networkx as nx
+from sklearn.preprocessing import MinMaxScaler
+from sklearn import metrics
+from glob import glob
+
+
+def data_preprocessing(df):
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df.fillna(method='ffill', inplace=True)
+    x = df.values[:, :-1]
+    y = np.array(df.values[:, -1], dtype=int)
+
+    minmax_scaler = MinMaxScaler()
+    minmax_scaler.fit(x)
+    x = minmax_scaler.transform(x)
+    return x, y
 
 
 def min_max_normalize(x):
