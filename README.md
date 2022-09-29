@@ -12,7 +12,8 @@ Please consider citing our paper if you find this repository useful.
 }
 ```
 
-DIF provides easy APIs in a sklearn style, that is, we first instantiate the model class by giving the parameters  
+DIF provides easy APIs like the sklearn style.
+We first instantiate the model class by giving the parameters  
 then, the instantiated model can be used to fit and predict data
 
 ```python

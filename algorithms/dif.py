@@ -15,8 +15,7 @@ from multiprocessing import Pool
 from torch.utils.data import DataLoader
 from torch_geometric.loader import DataLoader as pyGDataLoader
 from algorithms import net_torch
-from pyod.models.iforest import IForest
-from pyod.models.knn import KNN
+
 
 class DIF:
     """ Class of Deep isolation forest (DIF)
@@ -30,6 +29,12 @@ class DIF:
 
     Parameters
     ----------
+    network_name: str (default='mlp')
+        the used network backbone
+
+    network_class: None or torch.nn.Module class (default=None)
+        directly feed a network class
+
     n_ensemble: int (default=50):
         The number of representations in the ensemble
 
@@ -94,9 +99,9 @@ class DIF:
     def __init__(self, network_name='mlp', network_class=None,
                  n_ensemble=50, n_estimators=6, max_samples=256,
                  hidden_dim=[500,100], rep_dim=20, skip_connection=None, dropout=None, activation='tanh',
-                 data_type='tabular',
-                 batch_size=64, random_state=42, device='cuda', n_processes=1,
+                 data_type='tabular', batch_size=64,
                  new_score_func=True, new_ensemble_method=True,
+                 random_state=42, device='cuda', n_processes=1,
                  verbose=0, **network_args):
         # super(DeepIsolationForest, self).__init__(contamination=contamination)
 
