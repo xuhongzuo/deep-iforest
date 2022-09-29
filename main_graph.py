@@ -9,8 +9,6 @@ from collections import Counter
 from config import get_algo_config, get_algo_class
 from pyg_old.pyg_old_tu_dataset import TUDataset
 
-# @TODO: update graph datasets
-
 
 dataset_root = 'data/'
 
