@@ -13,11 +13,11 @@ dataset_root = 'data/'
 parser = argparse.ArgumentParser()
 parser.add_argument("--runs", type=int, default=1,
                     help="how many times we repeat the experiments to obtain the average performance")
-parser.add_argument("--input_dir", type=str, default='time-series/',
+parser.add_argument("--input_dir", type=str, default='ts/',
                     help="not use here for ts data")
 parser.add_argument("--output_dir", type=str, default='&ts_record/',
                     help="the output file path")
-parser.add_argument("--dataset", type=str, default='MSL', choices=['MSL'])
+parser.add_argument("--dataset", type=str, default='UCR_natural_fault_gaitHunt')
 parser.add_argument("--entities", type=str,
                     # default='FULL',
                     default='P-15',
