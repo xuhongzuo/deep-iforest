@@ -19,10 +19,9 @@ parser.add_argument("--output_dir", type=str, default='&ts_record/',
                     help="the output file path")
 parser.add_argument("--dataset", type=str, default='UCR_natural_fault_gaitHunt')
 parser.add_argument("--entities", type=str,
-                    # default='FULL',
-                    default='P-15',
+                    default='FULL',
                     help='FULL represents all the csv file in the folder, or a list of entity names split by comma')
-parser.add_argument("--model", type=str, default='eif', choices=['dif', 'eif', 'lesinn', 'iforest'], help="")
+parser.add_argument("--model", type=str, default='dif', help="")
 parser.add_argument("--note", type=str, default='')
 
 parser.add_argument('--seq_len', type=int, default=100)
@@ -33,12 +32,14 @@ model_class = get_algo_class(args.model)
 model_configs = get_algo_config(args.model)
 
 
-
 if args.model == 'dif':
     ts_model_configs={
-        'batch_size': 10000,
+        'data_type': 'ts',
+        'network_name': 'gru',
+        'new_ensemble_method': 0,
+        'batch_size': 5000,
         'layers': 1,
-        'hidden_dim': 20,
+        'hidden_dim': 20
     }
     model_configs = dict(model_configs, **ts_model_configs)
     model_configs['data_type'] = 'ts'

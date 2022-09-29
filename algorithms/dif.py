@@ -15,36 +15,102 @@ from multiprocessing import Pool
 from torch.utils.data import DataLoader
 from torch_geometric.loader import DataLoader as pyGDataLoader
 from algorithms import net_torch
-
+from pyod.models.iforest import IForest
+from pyod.models.knn import KNN
 
 class DIF:
+    """ Class of Deep isolation forest (DIF)
+    DIF proposes a new representation scheme, named random representation ensemble,
+    creating a group of random representations by optimisation-free neural networks.
+    Random axis-parallel cuts are subsequently applied to perform the data partition.
+
+    This representation scheme facilitates high freedom of the partition in the
+    original data space (equivalent to non-linear partition on subspaces of varying sizes),
+    encouraging a unique synergy between random representations and random partition-based isolation
+
+    Parameters
+    ----------
+    n_ensemble: int (default=50):
+        The number of representations in the ensemble
+
+    n_estimators : int (default=6)
+        The number of isolation trees per representation.
+
+    max_samples : int or float, default="auto"
+        The number of samples to draw from X to train each base estimator.
+            - If int, then draw `max_samples` samples.
+            - If float, then draw `max_samples * X.shape[0]` samples.
+            - If "auto", then `max_samples=min(256, n_samples)`.
+
+        If max_samples is larger than the number of samples provided,
+        all samples will be used for all trees (no sampling).
+
+    hidden_dim: list, default=[500,100]
+        the list of units number of hidden layers
+
+    rep_dim: int, default=20
+        the dimensionality of representations
+
+    skip_connection: None or str, default=None
+        whether use skip connection
+            - if "concat", then use concatenation-based skip connection
+
+    dropout: None or float, default=None
+        whether use dropout in the network
+            - if float, represent the dropout probability
+
+    activation: str, default='tanh'
+        the name of activation function, {'relu', 'tanh', 'sigmoid', 'leaky_relu'}
+
+    data_type: str, default='tabular'
+        the processed data type, {'tabular', 'ts', 'graph'}
+
+    batch_size: int, default=64
+        the number of data objects per mini-batch
+
+    random_state : int, RandomState instance or None, default=42
+        Controls the pseudo-randomness of the selection of the feature
+        and split values for each branching step and each tree in the forest.
+        Pass an int for reproducible results across multiple function calls.
+
+    device: str, default='cuda'
+        device for using pytorch, {'cuda', 'cpu'}
+
+    n_processes, int, default=1
+        the number of processes during inference
+
+    new_score_func: bool (default=True)
+        whether use the proposed new scoring function 
+        (Deviation-Enhanced Anomaly Scoring function, DEAS)
+
+    new_ensemble_method: bool (default=True)
+        whether use the proposed new ensemble method 
+        (Computational-efficient Representation Ensemble, CERE)
+
+    verbose : int, default=0
+        Controls the verbosity
+
     """
-    Class of Deep isolation forest 
-    """
-    def __init__(self, network_name='mlp', network_class=None, representation_lst=None,
-                 ensemble_method='batch', n_ensemble=50, n_estimators=6, max_samples=256,
+    def __init__(self, network_name='mlp', network_class=None,
+                 n_ensemble=50, n_estimators=6, max_samples=256,
                  hidden_dim=[500,100], rep_dim=20, skip_connection=None, dropout=None, activation='tanh',
-                 n_jobs=1, random_state=42, data_type='tabular',
-                 batch_size=64, device='cuda', n_processes=1,
-                 new_score_func=1, post_scal=1,
+                 data_type='tabular',
+                 batch_size=64, random_state=42, device='cuda', n_processes=1,
+                 new_score_func=True, new_ensemble_method=True,
                  verbose=0, **network_args):
         # super(DeepIsolationForest, self).__init__(contamination=contamination)
 
-        if ensemble_method not in ['naive', 'batch']:
-            raise NotImplementedError('')
         if data_type not in ['tabular', 'graph', 'ts']:
             raise NotImplementedError('unsupported data type')
 
         self.data_type = data_type
-        self.ensemble_method = ensemble_method
         self.n_ensemble = n_ensemble
         self.n_estimators = n_estimators
         self.max_samples = max_samples
-        self.n_jobs = n_jobs
         self.batch_size = batch_size
 
         self.new_score_func = new_score_func
-        self.post_scal = post_scal
+        self.new_ensemble_method = new_ensemble_method
 
         self.device = device
         self.n_processes = n_processes
@@ -58,7 +124,7 @@ class DIF:
             self.network_args['skip_connection'] = skip_connection
             self.network_args['dropout'] = dropout
             self.network_args['activation'] = activation
-            self.network_args['be_size'] = None if self.ensemble_method == 'naive' else self.n_ensemble
+            self.network_args['be_size'] = None if self.new_ensemble_method == False else self.n_ensemble
         elif network_name == 'gin':
             self.network_args['activation'] = activation
         if network_class is not None:
@@ -98,7 +164,7 @@ class DIF:
             net = self.Net(n_features=self.n_features, **self.network_args)
             print(net)
 
-        self.training_transfer(X, ensemble_seeds)
+        self._training_transfer(X, ensemble_seeds)
 
         if self.verbose >= 2:
             it = tqdm(range(self.n_ensemble), desc='clf fitting', ncols=80)
@@ -109,7 +175,6 @@ class DIF:
             self.clf_lst.append(
                 IsolationForest(n_estimators=self.n_estimators,
                                 max_samples=self.max_samples,
-                                n_jobs=self.n_jobs,
                                 random_state=ensemble_seeds[i])
             )
             self.clf_lst[i].fit(self.x_reduced_lst[i])
@@ -134,12 +199,19 @@ class DIF:
             The anomaly score of the input samples.
         """
 
-        test_reduced_lst = self.inference_transfer(X)
-        final_scores = self.inference_scoring(test_reduced_lst, n_processes=self.n_processes)
+        test_reduced_lst = self._inference_transfer(X)
+        final_scores = self._inference_scoring(test_reduced_lst, n_processes=self.n_processes)
         return final_scores
 
-    def training_transfer(self, X, ensemble_seeds):
-        if self.ensemble_method == 'naive':
+    def _training_transfer(self, X, ensemble_seeds):
+        if self.new_ensemble_method:
+            self.set_seed(ensemble_seeds[0])
+            net = self.Net(n_features=self.n_features, **self.network_args).to(self.device)
+            self.net_init(net)
+
+            self.x_reduced_lst = self.deep_transfer_batch_ensemble(X, net)
+            self.net_lst.append(net)
+        else:
             for i in tqdm(range(self.n_ensemble), desc='training ensemble process', ncols=100, leave=None):
                 self.set_seed(ensemble_seeds[i])
                 net = self.Net(n_features=self.n_features, **self.network_args).to(self.device)
@@ -147,32 +219,22 @@ class DIF:
 
                 self.x_reduced_lst.append(self.deep_transfer(X, net))
                 self.net_lst.append(net)
-        elif self.ensemble_method == 'batch':
-            self.set_seed(ensemble_seeds[0])
-            net = self.Net(n_features=self.n_features, **self.network_args).to(self.device)
-            self.net_init(net)
-
-            self.x_reduced_lst = self.deep_transfer_batch_ensemble(X, net)
-            self.net_lst.append(net)
-
         return
 
-    def inference_transfer(self, X):
+    def _inference_transfer(self, X):
         if self.data_type == 'tabular' and X.shape[0] == self.x_reduced_lst[0].shape[0]:
             return self.x_reduced_lst
 
         test_reduced_lst = []
-        if self.ensemble_method == 'naive':
+        if self.new_ensemble_method:
+            test_reduced_lst = self.deep_transfer_batch_ensemble(X, self.net_lst[0])
+        else:
             for i in tqdm(range(self.n_ensemble), desc='testing ensemble process', ncols=100, leave=None):
                 x_reduced = self.deep_transfer(X, self.net_lst[i])
                 test_reduced_lst.append(x_reduced)
-
-        elif self.ensemble_method == 'batch':
-            test_reduced_lst = self.deep_transfer_batch_ensemble(X, self.net_lst[0])
-
         return test_reduced_lst
 
-    def inference_scoring(self, x_reduced_lst, n_processes):
+    def _inference_scoring(self, x_reduced_lst, n_processes):
         if self.new_score_func:
             score_func = self.single_predict
         else:
@@ -228,10 +290,8 @@ class DIF:
                     x_reduced.append(x)
 
         x_reduced = torch.cat(x_reduced).data.cpu().numpy()
-
-        if self.post_scal:
-            x_reduced = StandardScaler().fit_transform(x_reduced)
-            x_reduced = np.tanh(x_reduced)
+        x_reduced = StandardScaler().fit_transform(x_reduced)
+        x_reduced = np.tanh(x_reduced)
         return x_reduced
 
     def deep_transfer_batch_ensemble(self, X, net):
@@ -249,12 +309,11 @@ class DIF:
         x_reduced_lst = [torch.cat([x_reduced[i][j] for i in range(len(x_reduced))]).data.cpu().numpy()
                          for j in range(x_reduced[0].shape[0])]
 
-        if self.post_scal:
-            for i in range(len(x_reduced_lst)):
-                xx = x_reduced_lst[i]
-                xx = StandardScaler().fit_transform(xx)
-                xx = np.tanh(xx)
-                x_reduced_lst[i] = xx
+        for i in range(len(x_reduced_lst)):
+            xx = x_reduced_lst[i]
+            xx = StandardScaler().fit_transform(xx)
+            xx = np.tanh(xx)
+            x_reduced_lst[i] = xx
 
         return x_reduced_lst
 

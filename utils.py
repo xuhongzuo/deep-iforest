@@ -221,21 +221,31 @@ def adjust_scores(label, score):
 
 
 def get_data_lst_ts(data_root, data, entities=None):
-
-    entities_lst = entities.split(',')
+    if type(entities) == str:
+        entities_lst = entities.split(',')
+    elif type(entities) == list:
+        entities_lst = entities
+    else:
+        raise ValueError('wrong entities')
 
     name_lst = []
     train_df_lst = []
     test_df_lst = []
     label_lst = []
 
-    if data == 'SMD' or data == 'ASD' or data == 'MSL' or data == 'SMAP':
+    if len(glob(os.path.join(data_root, data) + '/*.csv')) == 0:
         machine_lst = os.listdir(data_root + data + '/')
         for m in sorted(machine_lst):
             if entities != 'FULL' and m not in entities_lst:
                 continue
-            train_df = pd.read_csv(f'{data_root}/{data}/{m}/{m}_train.csv', sep=',', index_col=0)
-            test_df = pd.read_csv(f'{data_root}/{data}/{m}/{m}_test.csv', sep=',', index_col=0)
+            train_path = glob(os.path.join(data_root, data, m, '*train*.csv'))
+            test_path = glob(os.path.join(data_root, data, m, '*test*.csv'))
+
+            assert len(train_path) == 1 and len(test_path) == 1, f'{m}'
+            train_path, test_path = train_path[0], test_path[0]
+
+            train_df = pd.read_csv(train_path, sep=',', index_col=0)
+            test_df = pd.read_csv(test_path, sep=',', index_col=0)
             labels = test_df['label'].values
             train_df, test_df = train_df.drop('label', axis=1), test_df.drop('label', axis=1)
 
@@ -244,20 +254,15 @@ def get_data_lst_ts(data_root, data, entities=None):
             label_lst.append(labels)
             name_lst.append(m)
 
+        return train_df_lst, test_df_lst, label_lst, name_lst
+
     else:
         train_df = pd.read_csv(f'{data_root}{data}/{data}_train.csv', sep=',', index_col=0)
         test_df = pd.read_csv(f'{data_root}{data}/{data}_test.csv', sep=',', index_col=0)
         labels = test_df['label'].values
         train_df, test_df = train_df.drop('label', axis=1), test_df.drop('label', axis=1)
 
-        train_df_lst.append(train_df)
-        test_df_lst.append(test_df)
-        label_lst.append(labels)
-        name_lst.append(data)
-
-    name_lst = [data + '-' + n for n in name_lst]
-
-    return train_df_lst, test_df_lst, label_lst, name_lst
+        return [train_df], [test_df], [labels], [data]
 
 
 def eval_ts(scores, labels, test_df):

@@ -11,9 +11,8 @@ def parser_add_model_argument(parser):
     parser.add_argument('--skip_c', type=int, default=1)
     parser.add_argument('--act', type=str, default='tanh')
     parser.add_argument('--n_processes', type=int, default=1)
-    parser.add_argument('--post_scal', type=int, default=1)
     parser.add_argument('--new_score_func', type=int, default=1)
-    parser.add_argument('--ensemble_method', type=str, default='batch')
+    parser.add_argument('--new_ensemble_method', type=int, default=1)
 
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--device', type=str, default='cuda')
@@ -28,14 +27,13 @@ def update_model_configs(args, model_configs):
     model_configs['skip_connection'] = 'concat' if args.skip_c == 1 else None
     model_configs['activation'] = args.act
 
-    model_configs['post_scal'] = args.post_scal
     model_configs['new_score_func'] = args.new_score_func
+    model_configs['new_ensemble_method'] = args.new_ensemble_method
 
     model_configs['n_estimators'] = args.n_estimators
     model_configs['n_processes'] = args.n_processes
     model_configs['network_name'] = 'mlp'
     model_configs['data_type'] = 'tabular'
-    model_configs['ensemble_method'] = args.ensemble_method
     model_configs['batch_size'] = args.batch_size
     model_configs['device'] = args.device
 
