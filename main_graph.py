@@ -7,7 +7,9 @@ import torch
 import utils
 from collections import Counter
 from config import get_algo_config, get_algo_class
-from torch_geometric.datasets import TUDataset
+from pyg_old.pyg_old_tu_dataset import TUDataset
+
+# @TODO: update graph datasets
 
 
 dataset_root = 'data/'
@@ -15,7 +17,7 @@ dataset_root = 'data/'
 parser = argparse.ArgumentParser()
 parser.add_argument("--runs", type=int, default=1,
                     help="how many times we repeat the experiments to obtain the average performance")
-parser.add_argument("--input_dir", type=str, default='', help="the path of the data sets")
+parser.add_argument("--input_dir", type=str, default='graph/', help="the path of the data sets")
 parser.add_argument("--output_dir", type=str, default='&graph_record/',
                     help="the output file path")
 parser.add_argument("--dataset", type=str,
@@ -34,11 +36,14 @@ model_configs = get_algo_config(args.model)
 # args.model should be dif only
 if args.model == 'dif':
     graph_model_configs = {
+        'n_ensemble': 50,
         'data_type': 'graph',
+        'network_name': 'gin',
+        'new_ensemble_method': 0,
         'batch_size': 5000,
-        'hidden_dim': 100,
-        'embedding_dim': 50,
-        'layers': 5,
+        'n_hidden': 100,
+        'n_emb': 50,
+        'n_layers': 5,
         'activation': args.act,
         'pooling': 'sum'
     }
