@@ -17,15 +17,19 @@ parser.add_argument("--input_dir", type=str, default='ts/',
                     help="not use here for ts data")
 parser.add_argument("--output_dir", type=str, default='&ts_record/',
                     help="the output file path")
-parser.add_argument("--dataset", type=str, default='UCR_natural_fault_gaitHunt')
+parser.add_argument("--dataset", type=str, default='UCR_natural')
 parser.add_argument("--entities", type=str,
                     default='FULL',
                     help='FULL represents all the csv file in the folder, or a list of entity names split by comma')
 parser.add_argument("--model", type=str, default='dif', help="")
 parser.add_argument("--note", type=str, default='')
 
+# parameters of dif
 parser.add_argument('--seq_len', type=int, default=100)
-parser.add_argument('--stride', type=int, default=1)
+parser.add_argument('--stride', type=int, default=10)
+parser.add_argument('--n_layer', type=int, default=2)
+parser.add_argument('--hidden_dim', type=int, default=32)
+parser.add_argument('--rep_dim', type=int, default=20)
 args = parser.parse_args()
 
 model_class = get_algo_class(args.model)
@@ -35,15 +39,14 @@ model_configs = get_algo_config(args.model)
 if args.model == 'dif':
     ts_model_configs={
         'data_type': 'ts',
-        'network_name': 'gru',
+        'network_name': 'dilated_conv',
         'new_ensemble_method': 0,
-        'batch_size': 5000,
-        'layers': 1,
-        'hidden_dim': 20
+        'batch_size': 64,
+        'rep_dim': args.rep_dim,
+        'layers': args.n_layer,
+        'hidden_dim': args.hidden_dim
     }
     model_configs = dict(model_configs, **ts_model_configs)
-    model_configs['data_type'] = 'ts'
-    model_configs['network_name'] = 'gru'
 print(model_configs)
 
 
@@ -82,18 +85,13 @@ for train_df, test_df, labels, dataset_name in zip(train_df_lst, test_df_lst, la
 
         clf = model_class(**model_configs, random_state=42+i)
 
-        x = np.concatenate([x_train, x_test])
-        if args.model == 'dif':
-            x_seq = utils.get_sub_seqs(x, seq_len=args.seq_len, stride=args.stride)
-            x_test_seq = utils.get_sub_seqs(x_test, seq_len=args.seq_len, stride=1)
-            clf.fit(x_seq)
-            scores = clf.decision_function(x_test_seq)
+        x_train_seq = utils.get_sub_seqs(x_train, seq_len=args.seq_len, stride=args.stride)
+        x_test_seq = utils.get_sub_seqs(x_test, seq_len=args.seq_len, stride=1)
+        clf.fit(x_train_seq)
+        scores = clf.decision_function(x_test_seq)
 
-            padding_list = np.zeros(args.seq_len-1)
-            scores = np.hstack([padding_list, scores])
-        else:
-            clf.fit(x)
-            scores = clf.decision_function(x_test)
+        padding_list = np.zeros(args.seq_len-1)
+        scores = np.hstack([padding_list, scores])
 
         entry = utils.eval_ts(scores=scores, labels=labels, test_df=test_df)
         entries.append(entry)

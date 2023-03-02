@@ -19,6 +19,8 @@ def choose_net(network_name):
         return LSTMNet
     elif network_name == 'gin':
         return GinEncoderGraph
+    elif network_name == 'dilated_conv':
+        return DilatedConvEncoder
     else:
         raise NotImplementedError("")
 
@@ -227,6 +229,73 @@ class LSTMNet(torch.nn.Module):
         if self.bi:
             emb = torch.cat([hn[-2], hn[-1]], dim=1)
         return emb
+
+
+class SamePadConv(torch.nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation=1, groups=1):
+        super().__init__()
+        self.receptive_field = (kernel_size - 1) * dilation + 1
+        padding = self.receptive_field // 2
+        self.conv = torch.nn.Conv1d(
+            in_channels, out_channels, kernel_size,
+            padding=padding,
+            dilation=dilation,
+            groups=groups
+        )
+        self.remove = 1 if self.receptive_field % 2 == 0 else 0
+
+    def forward(self, x):
+        out = self.conv(x)
+        if self.remove > 0:
+            out = out[:, :, : -self.remove]
+        return out
+
+
+class ConvBlock(torch.nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, final=False):
+        super().__init__()
+        self.conv1 = SamePadConv(in_channels, out_channels, kernel_size, dilation=dilation)
+        self.conv2 = SamePadConv(out_channels, out_channels, kernel_size, dilation=dilation)
+        self.projector = torch.nn.Conv1d(in_channels, out_channels, 1) if in_channels != out_channels or final else None
+
+    def forward(self, x):
+        residual = x if self.projector is None else self.projector(x)
+        x = F.gelu(x)
+        x = self.conv1(x)
+        x = F.gelu(x)
+        x = self.conv2(x)
+        return x + residual
+
+
+class DilatedConvEncoder(torch.nn.Module):
+    def __init__(self, n_features, hidden_dim=20, n_emb=20, layers=1, kernel_size=3):
+        super().__init__()
+        self.input_fc = torch.nn.Linear(n_features, hidden_dim)
+        channels = [hidden_dim] * layers + [n_emb]
+        self.net = torch.nn.Sequential(*[
+            ConvBlock(
+                channels[i - 1] if i > 0 else hidden_dim,
+                channels[i],
+                kernel_size=kernel_size,
+                dilation=2 ** i,
+                final=(i == len(channels) - 1)
+            )
+            for i in range(len(channels))
+        ])
+        self.repr_dropout = torch.nn.Dropout(p=0.1)
+
+    def forward(self, x):
+        x = self.input_fc(x)
+        x = x.transpose(1, 2)  # B x Ch x T
+        x = self.net(x)
+        # x = self.repr_dropout(x)
+        x = x.transpose(1, 2)
+
+        x = F.max_pool1d(
+            x.transpose(1, 2),
+            kernel_size=x.size(1)
+        ).transpose(1, 2).squeeze(1)
+        return x
 
 
 class GinEncoderGraph(torch.nn.Module):

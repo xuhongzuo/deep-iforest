@@ -132,6 +132,9 @@ class DIF:
             self.network_args['be_size'] = None if self.new_ensemble_method == False else self.n_ensemble
         elif network_name == 'gin':
             self.network_args['activation'] = activation
+        elif network_name == 'dilated_conv':
+            self.network_args['hidden_dim'] = hidden_dim
+            self.network_args['n_emb'] = rep_dim
         if network_class is not None:
             self.Net = network_class
         print(f'network additional parameters: {network_args}')
@@ -336,8 +339,6 @@ class DIF:
         torch.cuda.manual_seed_all(seed)
         np.random.seed(seed)
         random.seed(seed)
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
 
     @staticmethod
     def single_predict_abla(x_reduced, clf):
