@@ -1,5 +1,11 @@
 # Deep iForest
 
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/deep-isolation-forest-for-anomaly-detection/anomaly-detection-on-kaggle-credit-card-fraud)](https://paperswithcode.com/sota/anomaly-detection-on-kaggle-credit-card-fraud?p=deep-isolation-forest-for-anomaly-detection)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/deep-isolation-forest-for-anomaly-detection/anomaly-detection-on-forest-covertype)](https://paperswithcode.com/sota/anomaly-detection-on-forest-covertype?p=deep-isolation-forest-for-anomaly-detection)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/deep-isolation-forest-for-anomaly-detection/anomaly-detection-on-nb15-backdoor)](https://paperswithcode.com/sota/anomaly-detection-on-nb15-backdoor?p=deep-isolation-forest-for-anomaly-detection)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/deep-isolation-forest-for-anomaly-detection/anomaly-detection-on-nb15-dos)](https://paperswithcode.com/sota/anomaly-detection-on-nb15-dos?p=deep-isolation-forest-for-anomaly-detection)
+
+
 This repository is the source code of the paper "Deep Isolation Forest for Anomaly Detection" (see full paper at https://arxiv.org/abs/2206.06602 )   
 Please consider citing our paper if you find this repository useful.  
 
