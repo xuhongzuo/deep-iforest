@@ -24,6 +24,7 @@ model.fit(X_train)
 score = model.predict(X_test)
 ```
 
+:boom:**Note:** DIF is also included in our `DeepOD` python library. Please see https://github.com/xuhongzuo/DeepOD 
 
 
 ### Citation
