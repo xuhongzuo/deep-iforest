@@ -21,7 +21,7 @@ from algorithms.dif import DIF
 model_configs = {'n_ensemble':50, 'n_estimators':6}
 model = DIF(**model_configs)
 model.fit(X_train)
-score = model.predict(X_test)
+score = model.decision_function(X_test)
 ```
 
 :boom:**Note:** 
